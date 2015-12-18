@@ -1,4 +1,4 @@
-package shadow.m.hap;
+package hapbrdlib;
 
 import android.bluetooth.BluetoothSocket;
 import android.util.Log;
@@ -18,7 +18,7 @@ public class HapBrd extends Thread {
     protected final OutputStream mmOutStream;
     private List<WbBtListener> listeners=new ArrayList<>();
 
-    public VibroBrd(BluetoothSocket socket) {
+    public HapBrd(BluetoothSocket socket) {
         mmSocket = socket;
         InputStream tmpIn = null;
         OutputStream tmpOut = null;
@@ -80,7 +80,7 @@ public class HapBrd extends Thread {
     /* enable drivers */
     public void setEnabled(boolean e) throws IOException{
         Log.d("wb","enable "+e);
-		writeBytes(String.format("EN;%d;\r",en).getBytes("US-ASCII"));
+		writeBytes(String.format("EN;%d;\r",e).getBytes("US-ASCII"));
     }
 
 	public void setLRA(boolean value) throws IOException {

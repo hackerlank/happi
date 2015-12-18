@@ -1,4 +1,4 @@
-package sh.m.wristband;
+package hapbrdlib;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
@@ -14,7 +14,6 @@ import android.os.Binder;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.ParcelUuid;
-import android.os.RemoteException;
 import android.util.Log;
 
 public class InsecureBT {
