@@ -217,7 +217,7 @@ void loop()  {
 			mState = 0;
 			setPWM(mId,0);
 			if (waveDir>0)
-				mId<=seqLen	? mId++ : mId=0;
+				mId<seqLen-1? mId++ : mId=0;
 			else
 				mId>0 		? mId-- : mId=seqLen-1;	
 		}

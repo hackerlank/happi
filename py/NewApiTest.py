@@ -23,9 +23,9 @@ class NewApiTest:
     def waveLocal():
         brd=DriverBrd()
         print brd.setSequence([3,4,0,5,1,2])
-        print brd.setWave(55,400,-1)
-        time.sleep(5)
-        print brd.setWave(35,400,0)
+        print brd.setWave(40,1000,1)
+        time.sleep(13)
+        print brd.setWave(35,1000,0)
 
     @staticmethod
     def diag():
