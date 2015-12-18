@@ -1,5 +1,4 @@
-/* If you change TCCR0B, it affects millis() and delay(). They will count time faster or slower than normal if you
- * change the TCCR0B settings. Below is the adjustment factor to maintain consistent behavior of these functions:
+/*
  *
  * CHANGELOG:
  * 2.1 waveDir>0 bug fix
@@ -8,13 +7,13 @@
  *
  * TODO:
  * 3.0 	migrate to floats (% to 0-1)
- * 		enable offsets and gains
+ * 		enable offsets and gains for each motor
  * */
 
 #include <Arduino.h>
 
 // FIRMWARE
-#define FW 			2.2
+#define FW 			"2.2"
 
 // 1 for DRV, 0 for mosfet
 #define DRV2603 	0
@@ -23,7 +22,7 @@
 #define PIN_ENABLE 	4 		// enable motors
 #define PIN_TYPE 	8		// toggle type
 
-// all commands terminated by \r
+// all commands are <CMD>;<Par1>;<Par2>\r
 #define CMD_SETVAL	"SET"	// set PWM value in % "SET;2;50"
 #define CMD_SETALL	"SETA"	// set all PWM value in % "SET;50"
 
@@ -54,14 +53,12 @@ uint8_t seqLen=6;
 uint8_t buff[128];
 uint8_t res=0;
 
-// wave setup
-float WF0=0,WFK=0,WA0=0,WAK=0;
-
+// wave state
 bool waveRunning=false;
-int wavetOff=1;
-int wavetOn=1;
+int wavetOff=1; // ms
+int wavetOn=1;	// ms
 int waveDir=1;
-int waveA=50;
+int waveA=50;	// % PWM
 
 // wave memory
 int mId=0;
@@ -77,6 +74,8 @@ String val2="";
 boolean stringComplete = false;  // whether the string is complete
 
 // haven't checked if "inline" works here
+/*If you change TCCR0B, it affects millis() and delay(). They will count time faster or slower than normal if you
+ * change the TCCR0B settings. Below is the adjustment factor to maintain consistent behavior of these functions */
 inline void fixedDelay(int millis) {delay(64*millis);}
 
 void setPWM(uint8_t m, int val) {
@@ -91,7 +90,8 @@ void allOff() {
 		setPWM(i,0);
 }
 
-String getValue(String data, char separator, int index) {
+/* parse values */
+String parseCmdSV(String data, char separator, int index) {
  	int found = 0;
 	int strIndex[] = {0, -1  };
 	int maxIndex = data.length()-1;
@@ -115,21 +115,23 @@ void setup()  {
 		pinMode(pwmPins[i], OUTPUT);
 		setPWM(pwmPins[i], 0);
 	}
-	// init enable pin
-	pinMode(PIN_ENABLE, OUTPUT);  
-	digitalWrite(PIN_ENABLE, LOW);
-	// init driver type to ERM
-	pinMode(PIN_TYPE, OUTPUT);  
-	digitalWrite(PIN_TYPE, LOW);
-	
-	inputString.reserve(30);
-	Serial.begin(38400);//,SERIAL_8N1);
+	if (DRV2603) {
+		// init enable pin
+		pinMode(PIN_ENABLE, OUTPUT);
+		digitalWrite(PIN_ENABLE, LOW);
+		// init driver type to ERM
+		pinMode(PIN_TYPE, OUTPUT);
+		digitalWrite(PIN_TYPE, LOW);
+	}
+		inputString.reserve(30);
+		Serial.begin(38400);//,SERIAL_8N1);
+
 }
 
 int applyCmd(){
-	cmd = getValue(inputString, ';', 0);
-	val1 = getValue(inputString, ';', 1);
-    val2 = getValue(inputString, ';', 2);
+	cmd =  parseCmdSV(inputString, ';', 0);
+	val1 = parseCmdSV(inputString, ';', 1);
+    val2 = parseCmdSV(inputString, ';', 2);
    
 	// GENERAL
 	if (cmd==CMD_SETVAL) {
@@ -144,7 +146,9 @@ int applyCmd(){
 		Serial.print(FW);
 		Serial.print("  DRV: ");
 		Serial.print(DRV2603);
-		Serial.print("   ");
+		//Serial.print("  SEQ: ");
+		//Serial.print(sequence);
+		Serial.print(" * ");
 	} else
 	if (cmd==CMD_ENABLE) {
 		digitalWrite(PIN_ENABLE,val1.toInt()>0 ? HIGH : LOW);			
@@ -158,7 +162,7 @@ int applyCmd(){
 		seqLen=val1.toInt();
 		if (seqLen>6) return -1;
 		for (int i=0; i<seqLen; i++){
-			sequence[i]=getValue(val2, ',', i).toInt();		
+			sequence[i]=parseCmdSV(val2, ',', i).toInt();
 		}
 	} else
 
