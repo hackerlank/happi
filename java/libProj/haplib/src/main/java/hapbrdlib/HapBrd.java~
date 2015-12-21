@@ -93,7 +93,7 @@ public class HapBrd extends Thread {
     }
     
 	/* set all motor power rate [0 1] */
-    public void setAllMotorPercentage(double value) throws IOException {
+    public void setMotorPercentage(double value) throws IOException {
         writeBytes(String.format("SETA;;%d;\r",value*100).getBytes("US-ASCII"));
     }
 
