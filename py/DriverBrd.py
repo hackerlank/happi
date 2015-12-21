@@ -102,7 +102,7 @@ class DriverBrd:
         #OLD
         #for motor in self.seq:
         #    self.sendCmd('%s;%d;%d'%(DriverBrd.CMD_SETVAL,motor,value),wait)
-        return self.sendCmd('%s;%d;%d'%(DriverBrd.CMD_SETALL,motor,value),wait)
+        return self.sendCmd('%s;;%d'%(DriverBrd.CMD_SETALL,value),wait)
 
 
     def setSequence(self,seq):
