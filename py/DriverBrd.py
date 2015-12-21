@@ -8,6 +8,7 @@ import serial
 
 class DriverBrd:
     CMD_SETVAL	="SET"	# set PWM value in [%] "SET;2;50"
+    CMD_SETALL	="SETA"	# set PWM value in [%] all motors "SETA;;50"
     CMD_INFO 	="INFO"	# get firmware info "INFO;"
     CMD_ENABLE 	="EN"	# enable motors "EN;1"
     CMD_SET_LRA ="LRA"	# toggle LRA "LRA;1"
@@ -98,9 +99,11 @@ class DriverBrd:
         """
         if value>100 or value<0:
             raise ValueError('out of bounds')
-        for motor in self.seq:
-            self.sendCmd('%s;%d;%d'%(DriverBrd.CMD_SETVAL,motor,value),wait)
-        #return ?
+        #OLD
+        #for motor in self.seq:
+        #    self.sendCmd('%s;%d;%d'%(DriverBrd.CMD_SETVAL,motor,value),wait)
+        return self.sendCmd('%s;%d;%d'%(DriverBrd.CMD_SETALL,motor,value),wait)
+
 
     def setSequence(self,seq):
         cmd='%s;%i;%s'%(DriverBrd.CMD_SQ,len(seq),','.join(str(x) for x in seq))

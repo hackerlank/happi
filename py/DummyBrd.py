@@ -14,5 +14,5 @@ class DummyBrd(DriverBrd):
         pass
 
     def sendCmd(self, cmd, waitForReply=True):
-        #print cmd
+        print cmd
         pass

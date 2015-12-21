@@ -12,11 +12,11 @@ class Method(Enum):
 
 class StimNorm:
     # amp range 10 - 60 %
-    A0=     0.33 #10.
-    Aband=  0.90 - 0.33#50.#60.
-    AMP=    A0 + Aband
+    A_0=     0.33 #10.
+    A_BAND=  0.90 - 0.33#50.#60.
+    AMP=    A_0 + A_BAND
     # const amp
-    AMPWAVE=A0 + Aband / 2#180
+    AMPWAVE=A_0 + A_BAND / 2#180
     # freq mod
     FREQ_0 =    1.
     FREQ_BAND = 3. - 1.#1.5
@@ -60,18 +60,18 @@ class StimNorm:
             self.brd.setSequence(StimNorm.MOTORS)
 
     def __playClick(self,level):
-        A=int(StimNorm.A0 + level * StimNorm.Arange)
+        A=int(StimNorm.A_0 + level * StimNorm.A_BAND)
         self.brd.setValue(StimNorm.CLICK_MOTOR, A)
 
     def __playWave(self,level,amp):
         if amp is None:
-            A=int(StimNorm.A0 + level * StimNorm.Arange)
+            A=int(StimNorm.A_0 + level * StimNorm.A_BAND)
         else:
             A=int(amp)
         d=1
         # 1 ms is the default toff time hardcoded in the arduino
         tOff=0.001
-        freq= StimNorm.FREQ_0 + level * StimNorm.FREQ_RANGE
+        freq= StimNorm.FREQ_0 + level * StimNorm.FREQ_BAND
         tau=1./freq / StimNorm.N_MOTORS # 1/f/6 [s]
         tOn = tau-tOff
         self.brd.setWave(A, tOn, d)

@@ -24,7 +24,7 @@
 
 // all commands are <CMD>;<Par1>;<Par2>\r
 #define CMD_SETVAL	"SET"	// set PWM value in % "SET;2;50"
-#define CMD_SETALL	"SETA"	// set all PWM value in % "SET;50"
+#define CMD_SETALL	"SETA"	// set all PWM value in % "SETA;;50"
 
 #define CMD_INFO 	"INFO"	// get firmware info "INFO"
 #define CMD_ENABLE 	"EN"	// enable motors "EN;1"
