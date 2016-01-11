@@ -16,7 +16,7 @@ class DriverBrd:
     CMD_ERROR 	="ERR"	# reply ERROR
     
     CMD_SQ      ="SQ"	# set motor sequence "SQ;5;0,2,1,4,5"
-    WAVE_2P 	="W2P"	# set amp [%] and on-time [ms] "W2P;60;50"
+    WAVE_2P 	="W2P"	# set on-time [ms] and amp [%] "W2P;<t_on[ms]>;<amp[%]>" ... "W2P;60;50"
     WAVE_EN 	="WEN" 	# wave direction +/-1 and 0 to disable "WEN;-1"
 
     """ @deprecated """

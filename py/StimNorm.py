@@ -3,23 +3,18 @@ import random
 from enum import Enum
 
 from hapPy.ModeSelect import DriverBrd
-
-class Method(Enum):
-    MODE_AMP =      1
-    MODE_WAVE=      2
-    MODE_WAVEAMP=   3
-    MODE_RANDOM=    4
+from hapPy.Stimuli import Method
 
 class StimNorm:
     # amp range 10 - 60 %
-    A_0=     0.33 #10.
-    A_BAND=  0.90 - 0.33#50.#60.
+    A_0=     0.10 #.33 #10.
+    A_BAND=  0.90 - A_0#50.#60.
     AMP=    A_0 + A_BAND
     # const amp
     AMPWAVE=A_0 + A_BAND / 2#180
     # freq mod
     FREQ_0 =    1.
-    FREQ_BAND = 3. - 1.#1.5
+    FREQ_BAND = 3. - FREQ_0#1.5
 
     CLICK_MOTOR=0
     MOTORS=     [3,4,0,5,1,2]
@@ -36,6 +31,7 @@ class StimNorm:
     def stimulate(self, level,method):
         self.brd.setValueAll(0, False)
         # S1 - amp
+        #print method
         if method is Method.MODE_AMP:
             self.__playClick(level)
         # S2 - wave
@@ -60,18 +56,19 @@ class StimNorm:
             self.brd.setSequence(StimNorm.MOTORS)
 
     def __playClick(self,level):
-        A=int(StimNorm.A_0 + level * StimNorm.A_BAND)
-        self.brd.setValue(StimNorm.CLICK_MOTOR, A)
+        A=(StimNorm.A_0 + level * StimNorm.A_BAND)
+        self.brd.setValue(StimNorm.CLICK_MOTOR, 100*A)
 
     def __playWave(self,level,amp):
         if amp is None:
-            A=int(StimNorm.A_0 + level * StimNorm.A_BAND)
+            A=(StimNorm.A_0 + level * StimNorm.A_BAND)
         else:
-            A=int(amp)
+            A=(amp)
         d=1
         # 1 ms is the default toff time hardcoded in the arduino
         tOff=0.001
         freq= StimNorm.FREQ_0 + level * StimNorm.FREQ_BAND
         tau=1./freq / StimNorm.N_MOTORS # 1/f/6 [s]
         tOn = tau-tOff
-        self.brd.setWave(A, tOn, d)
+        #print 'ton=%f amp=%f'%(tOn,A)
+        self.brd.setWave(100*A, 1000*tOn, d)
