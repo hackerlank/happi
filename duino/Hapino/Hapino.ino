@@ -11,7 +11,7 @@
   		enable offsets and gains for each motor
  * */
 
-#include <Arduino.h>
+//#include <Arduino.h>
 #include "DRV2605.h"
 #include "I2C.h"
 
@@ -21,6 +21,8 @@
 // all commands are <CMD>;<Par1>;<Par2>\r
 #define CMD_SETVAL	"SET"	// set PWM value in % "SET;2;50"
 #define CMD_SETALL	"SETA"	// set all PWM value [0,1] "SETA;;50"
+#define CMD_TEST    "TEST"
+#define CMD_SCAN    "SCAN"
 
 #define CMD_INFO 	"INFO"	// get firmware info "INFO"
 #define CMD_ENABLE 	"EN"	// enable motors "EN;1"
@@ -34,35 +36,37 @@
 #define CMD_SETGAIN "SETGAIN"// analogue syntax
 
 #define WAVE_2P 	"W2P"	// set on-time [s] and amp [0, 1]  "W2P;60;50"
-#define WAVE_EN 	"WEN" 	// wave direction +/-1 and 0 to disable "WEN;-1;"
-
+#define WAVE_EN 	"WEN" 	// wave direction +/-1 and 0 to disable, larger than 1 is duration in milis "WEN;-1;"
 
 DRV2605 drv;
 
 uint8_t hapAdr[] = {0x0A, 0x1A, 0x2A, 0x4A, 0x5A, 0x6A};
 
 uint8_t seqLen = 6;
-uint8_t sequence[] = {0, 1, 2, 3, 4, 5};
+uint8_t sequence[] = {4, 1, 2, 0, 5, 3};
+
+// TBD
 float hapOffs[32];
 float hapGains[32];
-
 
 // comm
 uint8_t buff[64];
 uint8_t res = 0;
 
-// wave state
-bool waveRunning = false;
+// wave param
 int wavetOff = 1; // ms
 int wavetOn = 1;	// ms
 int waveDir = 1;
 int waveA = 50;	// % PWM
+unsigned long timeExpire = 0;
 
 // wave memory
+bool waveRunning = false;
 int mId = 0;
 int mState = 0;
 unsigned long time;
 unsigned long time_1, sinceLastOnTrans;
+
 
 // communication
 String inputString = "";         // a string to hold incoming data
@@ -76,7 +80,7 @@ inline void fixedDelay(int millis) {
 }
 
 void setPWM(uint8_t m, int val) {
-  drv.setPWM(hapAdr[sequence[m]], val * 255 / 100);
+  drv.setPWM(hapAdr[sequence[m]], val * 127 / 100);
 }
 
 void allOff() {
@@ -102,25 +106,15 @@ String parseCmdSV(String data, char separator, int index) {
 void setup()  {
   Serial.begin(38400);//,SERIAL_8N1);
   I2c.begin();
+  drv.begin();
   for (uint8_t j = 0; j < 6; j++) {
     uint8_t i=hapAdr[sequence[j]];
-    uint8_t bat=drv.readRegister8(i,DRV2605_REG_VBAT);
-    /*
-    if (bat!=32) {
-      drv.init(i, false);
-      Serial.print(i,HEX);
-      Serial.print(" ");
-      Serial.println(bat);
-      drv.setPWM(i, 40);
-      delay(400);
-      drv.setPWM(i, 0);
-    }*/
+    drv.setAddress(i);
+    drv.init(i,false);
+    drv.setRealtimeValue(0);
     delay(10);
-    
   }
   inputString.reserve(30);
-  
-
 }
 
 int applyCmd() {
@@ -131,40 +125,71 @@ int applyCmd() {
   // GENERAL
   if (cmd == CMD_SETVAL) {
     setPWM(val1.toInt(), val2.toInt());
-  } else if (cmd == CMD_SETALL) {
+  } 
+  
+  else if (cmd == CMD_SETALL) {
     for (int i = 0; i < 6; i++)
       setPWM(i, val2.toInt());
-  } else if (cmd == CMD_INFO) {
+  } 
+  
+  else if (cmd == CMD_INFO) {
     Serial.print("FW: ");
     Serial.print(FW);
     Serial.print("  DRV2605l ");
     //Serial.print("  SEQ: ");
     //Serial.print(sequence);
     Serial.print(" * ");
-  } else if (cmd == CMD_ENABLE) {
+  } 
+  
+  else if (cmd == CMD_TEST) {
+    for (uint8_t j = 0; j < 6; j++) {
+      uint8_t i=hapAdr[sequence[j]];
+      setPWM(j,20);
+      delay(1000);
+      setPWM(j, 0);
+      delay(1000);
+    }
+  } 
+  
+  else if (cmd == CMD_SCAN) {
+    pinMode(13,OUTPUT);
+    digitalWrite(13,I2c.scan());
+  } 
+  
+  else if (cmd == CMD_ENABLE) {
     return -1; // NOT IMPLEMENTED
-  } else if (cmd == CMD_SET_LRA) {
+  } 
+  
+  else if (cmd == CMD_SET_LRA) {
     return -1; // NOT IMPLEMENTED
-  } else if (cmd == CMD_SQ) {
+  } 
+  
+  else if (cmd == CMD_SQ) {
     seqLen = val1.toInt();
     if (seqLen > 6) return -1;
     for (int i = 0; i < seqLen; i++) {
       sequence[i] = parseCmdSV(val2, ',', i).toInt();
     }
-  } else
-
-    // WAVE
-    if (cmd == WAVE_2P) {
+  } 
+  
+  else if (cmd == WAVE_2P) {
       wavetOff = 1;
       wavetOn = val1.toInt();
       waveDir = 0;
       waveA = val2.toInt();
-    } else if (cmd == WAVE_EN) {
+  } 
+  
+  else if (cmd == WAVE_EN) {
       waveDir = val1.toInt();
+      if (waveDir*waveDir>1)
+        timeExpire=millis()+long(waveDir>0 ? waveDir : -waveDir);
+      else timeExpire=0;
       waveRunning = waveDir != 0;
       if (!waveRunning)
         allOff();
-    } else
+  } 
+  
+  else
       return -1;
   return 1;
 }
@@ -195,7 +220,14 @@ void loop()  {
 
   // wave mode
   if (waveRunning) {
-    time = (millis());
+    time = millis();
+    if (timeExpire > 0)
+      if (long(timeExpire-time) < 0){
+        waveRunning=false;
+        allOff();
+        return;
+    }
+    
     sinceLastOnTrans = time - time_1;
 
     // turn off
@@ -205,7 +237,7 @@ void loop()  {
       if (waveDir > 0)
         mId < seqLen - 1 ? mId++ : mId = 0;
       else
-        mId > 0 		? mId-- : mId = seqLen - 1;
+        mId > 0 		     ? mId-- : mId = seqLen - 1;
     }
     if ((sinceLastOnTrans > wavetOff + wavetOn) && mState == 0) {
       mState = 1;

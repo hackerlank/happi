@@ -30,11 +30,8 @@ class DriverBrd:
     MOTORS_DEF=[0,1,2,3,4,5]
 
     def __init__(self, serialPort=None, seq=MOTORS_DEF):
-        ''' the FTDI tends to reset the board, therefore it's neccessary to
-            wait 2s before sending anything
-        '''
         if serialPort is None:
-            serialPort='COM4' if os.name == 'nt' else '/dev/ttyUSB0'
+            serialPort='COM6' if os.name == 'nt' else '/dev/ttyUSB0'
 
         print "connecting to " + serialPort + " at " + str(38400)
         self.ser = serial.Serial(timeout=1)
@@ -44,7 +41,11 @@ class DriverBrd:
         self.ser.stopbits=serial.STOPBITS_ONE
         self.ser.bytesize=serial.EIGHTBITS
         self.ser.open()
-        self.seq=seq
+        ''' the FTDI tends to reset the board, therefore it's neccessary to
+            wait 2s before sending anything
+        '''
+        time.sleep(1.5)
+        #self.seq=seq
         #self.setSequence(seq)
 
     def close(self):
@@ -108,7 +109,7 @@ class DriverBrd:
         return self.sendCmd('%s;;%d'%(DriverBrd.CMD_SETALL,value),wait)
 
 
-    def setSequence(self, seq=self.seq):
+    def setSequence(self, seq):
         cmd='%s;%i;%s'%(DriverBrd.CMD_SQ,len(seq),','.join(str(x) for x in seq))
         #print cmd
         return self.sendCmd(cmd)
@@ -116,3 +117,5 @@ class DriverBrd:
     def setWave(self, amp,tOn,wdir):
         self.sendCmd('%s;%d;%d'%(DriverBrd.WAVE_2P,tOn,amp),False)
         return self.sendCmd('%s;%d'%(DriverBrd.WAVE_EN,wdir),True)
+
+
