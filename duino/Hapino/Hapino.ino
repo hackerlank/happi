@@ -18,13 +18,18 @@
 // FIRMWARE
 #define FW 			"3.0"
 
-// all commands are <CMD>;<Par1>;<Par2>\r
-#define CMD_SETVAL	"SET"	// set PWM value in % "SET;2;50"
-#define CMD_SETALL	"SETA"	// set all PWM value [0,1] "SETA;;50"
+// all commands are <CMD>;<Par1>;<Par2>;<Par3>...\r
+/* analytics */
 #define CMD_TEST    "TEST"
 #define CMD_SCAN    "SCAN"
+#define CMD_INFO 	  "INFO"	// get firmware info "INFO"
 
-#define CMD_INFO 	"INFO"	// get firmware info "INFO"
+/* buzz & clicks */
+#define CMD_SETVAL  "SET" // set PWM value in % "SET;2;50"
+#define CMD_SETALL  "SETA"  // set all PWM value [0,100] "SETA;;50"
+#define CMD_CLICK   "C"     // set PWM duration "C;2;50;50"
+#define CMD_CLICK_ALL   "CA"     // set PWM duration "CA;;50;50"
+
 #define CMD_ENABLE 	"EN"	// enable motors "EN;1"
 #define CMD_SET_LRA "LRA"  // toggle LRA "LRA;1"
 
@@ -69,15 +74,9 @@ unsigned long time_1, sinceLastOnTrans;
 
 
 // communication
-String inputString = "";         // a string to hold incoming data
-String cmd = "";
-String val1 = "";
-String val2 = "";
 boolean stringComplete = false;  // whether the string is complete
-
-inline void fixedDelay(int millis) {
-  delay(/*64* */millis);
-}
+char inpoutStr[100];
+int strLen=0;
 
 void setPWM(uint8_t m, int val) {
   drv.setPWM(hapAdr[sequence[m]], val * 127 / 100);
@@ -88,99 +87,110 @@ void allOff() {
     setPWM(i, 0);
 }
 
-/* parse values */
-String parseCmdSV(String data, char separator, int index) {
-  int found = 0;
-  int strIndex[] = {0, -1  };
-  int maxIndex = data.length() - 1;
-  for (int i = 0; i <= maxIndex && found <= index; i++) {
-    if (data.charAt(i) == separator || i == maxIndex) {
-      found++;
-      strIndex[0] = strIndex[1] + 1;
-      strIndex[1] = (i == maxIndex) ? i + 1 : i;
-    }
+/* parse values, assumes first cell contains string, the rest contain ints */
+int parseCMD(char * name, int * ints) {
+  int count=0;
+  char * pch;
+  pch = strtok (inpoutStr,",;");
+  while (pch != NULL && count < 11)  {
+    if (!count)
+        strcpy(name, pch);
+    else
+        ints[count-1]=atoi(pch);
+    count++;
+    pch = strtok (NULL, ",;");
   }
-  return found > index ? data.substring(strIndex[0], strIndex[1]) : "";
+  return count;
 }
 
-void setup()  {
-  Serial.begin(38400);//,SERIAL_8N1);
-  I2c.begin();
-  drv.begin();
-  for (uint8_t j = 0; j < 6; j++) {
-    uint8_t i=hapAdr[sequence[j]];
-    drv.setAddress(i);
-    drv.init(i,false);
-    drv.setRealtimeValue(0);
-    delay(10);
-  }
-  inputString.reserve(30);
-}
-
+/* walk through cmds and execute */
 int applyCmd() {
-  cmd =  parseCmdSV(inputString, ';', 0);
-  val1 = parseCmdSV(inputString, ';', 1);
-  val2 = parseCmdSV(inputString, ';', 2);
-
+  char cmd[10];
+  int ints[10];
+  int cmdPlusInts=parseCMD(cmd, ints);
+  /* 
+  // debug
+  Serial.println();
+  Serial.println(cmd);
+  for (int i=0;i<cmdPlusInts-1;i++) {
+    Serial.println(ints[i]);  
+  }
+  return 1;
+  */
   // GENERAL
-  if (cmd == CMD_SETVAL) {
-    setPWM(val1.toInt(), val2.toInt());
+  if      (strcmp(cmd,CMD_SETVAL)==0) {
+    setPWM(ints[0], ints[1]);
   } 
-  
-  else if (cmd == CMD_SETALL) {
+  else if (strcmp(cmd,CMD_SETALL)==0) {
     for (int i = 0; i < 6; i++)
-      setPWM(i, val2.toInt());
+      setPWM(i, ints[0]);
   } 
+  else if (strcmp(cmd,CMD_CLICK)==0) {
+    setPWM(ints[0], ints[1]);
+    delay(ints[2]); 
+    setPWM(ints[0], 0);
+  }
+  else if (strcmp(cmd,CMD_CLICK_ALL)==0) {
+    for (int i = 0; i < 6; i++)
+      setPWM(i, ints[0]);
+    delay(ints[1]); 
+    for (int i = 0; i < 6; i++)
+      setPWM(i, 0);
+  }
+
   
-  else if (cmd == CMD_INFO) {
+  else if (strcmp(cmd,CMD_INFO)==0) {
     Serial.print("FW: ");
     Serial.print(FW);
     Serial.print("  DRV2605l ");
-    //Serial.print("  SEQ: ");
-    //Serial.print(sequence);
+    Serial.print("  SEQ: ");
+    for (int i=0;i<seqLen;i++){
+      Serial.print(sequence[i]);
+      Serial.print(' ');
+    }
     Serial.print(" * ");
   } 
   
-  else if (cmd == CMD_TEST) {
+  else if (strcmp(cmd,CMD_TEST)==0) {
     for (uint8_t j = 0; j < 6; j++) {
       uint8_t i=hapAdr[sequence[j]];
       setPWM(j,20);
-      delay(1000);
+      delay(100);
       setPWM(j, 0);
-      delay(1000);
+      delay(100);
     }
   } 
   
-  else if (cmd == CMD_SCAN) {
+  else if (strcmp(cmd,CMD_SCAN)==0) {
     pinMode(13,OUTPUT);
     digitalWrite(13,I2c.scan());
   } 
   
-  else if (cmd == CMD_ENABLE) {
+  else if (strcmp(cmd,CMD_ENABLE)==0) {
     return -1; // NOT IMPLEMENTED
   } 
   
-  else if (cmd == CMD_SET_LRA) {
+  else if (strcmp(cmd,CMD_SET_LRA)==0) {
     return -1; // NOT IMPLEMENTED
   } 
   
-  else if (cmd == CMD_SQ) {
-    seqLen = val1.toInt();
-    if (seqLen > 6) return -1;
+  else if (strcmp(cmd,CMD_SQ)==0) {
+    seqLen = ints[0];
+    if (seqLen != (cmdPlusInts-2)) return -1;
     for (int i = 0; i < seqLen; i++) {
-      sequence[i] = parseCmdSV(val2, ',', i).toInt();
+      sequence[i] = ints[i+1];
     }
   } 
   
-  else if (cmd == WAVE_2P) {
+  else if (strcmp(cmd,WAVE_2P)==0) {
       wavetOff = 1;
-      wavetOn = val1.toInt();
+      wavetOn = ints[0];
       waveDir = 0;
-      waveA = val2.toInt();
+      waveA = ints[1];
   } 
   
-  else if (cmd == WAVE_EN) {
-      waveDir = val1.toInt();
+  else if (strcmp(cmd,WAVE_EN)==0) {
+      waveDir = ints[0];
       if (waveDir*waveDir>1)
         timeExpire=millis()+long(waveDir>0 ? waveDir : -waveDir);
       else timeExpire=0;
@@ -194,10 +204,12 @@ int applyCmd() {
   return 1;
 }
 
+/* read all chars and raise flag if command complete (\r found) */
 void readLine() {
   while (Serial.available()) {
     char inChar = (char)Serial.read();
-    inputString += inChar;
+    inpoutStr[strLen] = inChar;
+    strLen++;
     if (inChar == '\r') {
       stringComplete = true;
       return;
@@ -205,16 +217,36 @@ void readLine() {
   }
 }
 
+
+
+void setup()  {
+  Serial.begin(38400);//,SERIAL_8N1);
+  I2c.begin();
+  drv.begin();
+  for (uint8_t j = 0; j < 6; j++) {
+    uint8_t i=hapAdr[sequence[j]];
+    drv.setAddress(i);
+    drv.init(i,false);
+    drv.setRealtimeValue(0);
+    delay(10);
+  }
+}
+
+/* reads serial buffer, executes command if complete, controls the wave */
 void loop()  {
-  // process commands
+  // read all chars in the buffer
   readLine();
+
+  // execute command if complete and reset buffer
   if (stringComplete) {
     //Serial.println(inputString);
     if (applyCmd() > 0)
       Serial.println(CMD_OK);
     else
       Serial.println(CMD_ERROR);
-    inputString = "";
+    
+    memset(inpoutStr, 0, strLen);
+    strLen=0;
     stringComplete = false;
   }
 
@@ -226,10 +258,8 @@ void loop()  {
         waveRunning=false;
         allOff();
         return;
-    }
-    
+    }  
     sinceLastOnTrans = time - time_1;
-
     // turn off
     if (sinceLastOnTrans > wavetOn && mState == 1) {
       mState = 0;
