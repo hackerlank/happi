@@ -6,49 +6,45 @@
    3.0 i2c
    TODO: pulse train
 
-   TODO:
-   3.0 	migrate to floats (% to 0-1)
-  		enable offsets and gains for each motor
- * */
+ */
 
-//#include <Arduino.h>
 #include "DRV2605.h"
 #include "I2C.h"
 
 // FIRMWARE
-#define FW 			"3.0"
+#define FW 			"3.1 Oct16"
 
 // all commands are <CMD>;<Par1>;<Par2>;<Par3>...\r
 /* analytics */
 #define CMD_TEST    "TEST"
 #define CMD_SCAN    "SCAN"
 #define CMD_INFO 	  "INFO"	// get firmware info "INFO"
+#define CMD_RESET   "RST"  // get firmware info "INFO"
 
 /* buzz & clicks */
-#define CMD_SETVAL  "SET" // set PWM value in % "SET;2;50"
-#define CMD_SETALL  "SETA"  // set all PWM value [0,100] "SETA;;50"
-#define CMD_CLICK   "C"     // set PWM duration "C;2;50;50"
-#define CMD_CLICK_ALL   "CA"     // set PWM duration "CA;;50;50"
+#define CMD_SETVAL    "SET" // set PWM value in % "SET;2;50"
+#define CMD_SETALL    "SETA"  // set all PWM value [0,100] "SETA;;50"
+#define CMD_CLICK     "C"     // set PWM duration "C;2;50;50"
+#define CMD_CLICK_ALL "CA"     // set PWM duration "CA;;50;50"
 
-#define CMD_ENABLE 	"EN"	// enable motors "EN;1"
-#define CMD_SET_LRA "LRA"  // toggle LRA "LRA;1"
+#define CMD_ENABLE 	  "EN"	// enable motors "EN;1"
+#define CMD_SET_LRA   "LRA"  // toggle LRA "LRA;1"
 
-#define CMD_OK 		"OK"	// reply OK
-#define CMD_ERROR 	"ERR"	// reply ERROR
+#define CMD_OK 		    "OK"	// reply OK
+#define CMD_ERROR 	  "ERR"	// reply ERROR
 
-#define CMD_SQ 	"SQ"	// set motor sequence "SQ;5;0,2,1,4,5"
-#define CMD_SETOFS  "SETOFF" // analogue syntax
-#define CMD_SETGAIN "SETGAIN"// analogue syntax
+#define CMD_SQ 	      "SQ"	// set motor sequence "SQ;5;1,2,0,5,3"
+#define CMD_SETOFS    "SETOFF" // analogue syntax
+#define CMD_SETGAIN   "SETGAIN"// analogue syntax
 
-#define WAVE_2P 	"W2P"	// set on-time [s] and amp [0, 1]  "W2P;60;50"
-#define WAVE_EN 	"WEN" 	// wave direction +/-1 and 0 to disable, larger than 1 is duration in milis "WEN;-1;"
+#define WAVE_2P 	    "W2P"	// set on-time [s] and amp [0, 100]  "W2P;60;50"
+#define WAVE_EN 	    "WEN" 	// wave direction +/-1 and 0 to disable, larger than 1 is duration in milis "WEN;-1;"
+#define WAVE          "WAV"   // WAV;Ton;Amplitude;Direction;Duration WAV;20;50;1;200
 
 DRV2605 drv;
-
-uint8_t hapAdr[] = {0x0A, 0x1A, 0x2A, 0x4A, 0x5A, 0x6A};
-
+uint8_t hapAdr[] = {0x5A, 0x0A, 0x2A, 0x4A, 0x6A, 0x1A};
 uint8_t seqLen = 6;
-uint8_t sequence[] = {4, 1, 2, 0, 5, 3};
+uint8_t sequence[] = {0, 1, 2, 3, 4, 5};
 
 // TBD
 float hapOffs[32];
@@ -69,14 +65,16 @@ unsigned long timeExpire = 0;
 bool waveRunning = false;
 int mId = 0;
 int mState = 0;
-unsigned long time;
 unsigned long time_1, sinceLastOnTrans;
-
 
 // communication
 boolean stringComplete = false;  // whether the string is complete
 char inpoutStr[100];
 int strLen=0;
+
+
+
+
 
 void setPWM(uint8_t m, int val) {
   drv.setPWM(hapAdr[sequence[m]], val * 127 / 100);
@@ -85,6 +83,7 @@ void setPWM(uint8_t m, int val) {
 void allOff() {
   for (int i = 0; i < 6; i++)
     setPWM(i, 0);
+    delay(1);
 }
 
 /* parse values, assumes first cell contains string, the rest contain ints */
@@ -117,7 +116,7 @@ int applyCmd() {
   }
   return 1;
   */
-  // GENERAL
+  // SIMPLE
   if      (strcmp(cmd,CMD_SETVAL)==0) {
     setPWM(ints[0], ints[1]);
   } 
@@ -126,19 +125,22 @@ int applyCmd() {
       setPWM(i, ints[0]);
   } 
   else if (strcmp(cmd,CMD_CLICK)==0) {
+    digitalWrite(13,HIGH);
     setPWM(ints[0], ints[1]);
     delay(ints[2]); 
     setPWM(ints[0], 0);
+    digitalWrite(13,LOW);
   }
   else if (strcmp(cmd,CMD_CLICK_ALL)==0) {
+    digitalWrite(13,HIGH);
     for (int i = 0; i < 6; i++)
       setPWM(i, ints[0]);
     delay(ints[1]); 
-    for (int i = 0; i < 6; i++)
-      setPWM(i, 0);
+    allOff();
+    digitalWrite(13,LOW);
   }
 
-  
+  // BASICS
   else if (strcmp(cmd,CMD_INFO)==0) {
     Serial.print("FW: ");
     Serial.print(FW);
@@ -150,7 +152,6 @@ int applyCmd() {
     }
     Serial.print(" * ");
   } 
-  
   else if (strcmp(cmd,CMD_TEST)==0) {
     for (uint8_t j = 0; j < 6; j++) {
       uint8_t i=hapAdr[sequence[j]];
@@ -160,46 +161,67 @@ int applyCmd() {
       delay(100);
     }
   } 
-  
   else if (strcmp(cmd,CMD_SCAN)==0) {
-    pinMode(13,OUTPUT);
-    digitalWrite(13,I2c.scan());
+    digitalWrite(13,HIGH);
+    int n=I2c.scan();
+    digitalWrite(13,LOW);
+    for (int i=0; i<n;i++) {
+      digitalWrite(13,HIGH);
+      delay(300);
+      digitalWrite(13,LOW);
+      delay(300);
+    }
   } 
-  
+  else if (strcmp(cmd,CMD_RESET)==0) {
+    initDrivers();
+    digitalWrite(13,HIGH);
+    delay(700);
+    digitalWrite(13,LOW);
+  } 
   else if (strcmp(cmd,CMD_ENABLE)==0) {
     return -1; // NOT IMPLEMENTED
-  } 
-  
+  }   
   else if (strcmp(cmd,CMD_SET_LRA)==0) {
     return -1; // NOT IMPLEMENTED
   } 
-  
+
+  // WAVE
   else if (strcmp(cmd,CMD_SQ)==0) {
+    if (ints[0] > (cmdPlusInts-2)) 
+      return -1;
     seqLen = ints[0];
-    if (seqLen != (cmdPlusInts-2)) return -1;
     for (int i = 0; i < seqLen; i++) {
       sequence[i] = ints[i+1];
     }
-  } 
-  
+  }   
   else if (strcmp(cmd,WAVE_2P)==0) {
       wavetOff = 1;
       wavetOn = ints[0];
       waveDir = 0;
       waveA = ints[1];
   } 
-  
   else if (strcmp(cmd,WAVE_EN)==0) {
       waveDir = ints[0];
-      if (waveDir*waveDir>1)
-        timeExpire=millis()+long(waveDir>0 ? waveDir : -waveDir);
+      if (waveDir!=0 && !waveRunning)
+        mId=random(seqLen);
+      if (waveDir>1 || waveDir<-1)
+        timeExpire=millis()+(unsigned long)(waveDir>0 ? waveDir : -waveDir);
       else timeExpire=0;
       waveRunning = waveDir != 0;
       if (!waveRunning)
         allOff();
-  } 
-  
-  else
+  } else if (strcmp(cmd,WAVE)==0) {
+      //WAV;Ton;Amplitude;Direction;Duration
+      wavetOn =   ints[0];
+      waveA =     ints[1];
+      waveDir =   ints[2];
+      if (waveDir!=0 && !waveRunning)
+          mId=random(seqLen);
+      timeExpire=ints[3] ? millis()+(unsigned long)ints[3] : 0;
+      waveRunning = waveDir != 0;
+      if (!waveRunning)
+        allOff();
+  } else
       return -1;
   return 1;
 }
@@ -217,12 +239,7 @@ void readLine() {
   }
 }
 
-
-
-void setup()  {
-  Serial.begin(38400);//,SERIAL_8N1);
-  I2c.begin();
-  drv.begin();
+void initDrivers() {
   for (uint8_t j = 0; j < 6; j++) {
     uint8_t i=hapAdr[sequence[j]];
     drv.setAddress(i);
@@ -230,6 +247,14 @@ void setup()  {
     drv.setRealtimeValue(0);
     delay(10);
   }
+}
+
+void setup()  {
+  Serial.begin(38400);//,SERIAL_8N1);
+  pinMode(13,OUTPUT);
+  I2c.begin();
+  drv.begin();
+  initDrivers();
 }
 
 /* reads serial buffer, executes command if complete, controls the wave */
@@ -252,14 +277,14 @@ void loop()  {
 
   // wave mode
   if (waveRunning) {
-    time = millis();
+    unsigned long t = millis();
     if (timeExpire > 0)
-      if (long(timeExpire-time) < 0){
+      if (long(timeExpire-t) < 0){
         waveRunning=false;
         allOff();
         return;
     }  
-    sinceLastOnTrans = time - time_1;
+    sinceLastOnTrans = t - time_1;
     // turn off
     if (sinceLastOnTrans > wavetOn && mState == 1) {
       mState = 0;
@@ -272,10 +297,11 @@ void loop()  {
     if ((sinceLastOnTrans > wavetOff + wavetOn) && mState == 0) {
       mState = 1;
       setPWM(mId, waveA);
-      time_1 = time;
+      time_1 = t;
     }
   }
 }
+
 
 
 

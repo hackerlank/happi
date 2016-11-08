@@ -44,7 +44,11 @@ class DriverBrd:
         ''' the FTDI tends to reset the board, therefore it's neccessary to
             wait 2s before sending anything
         '''
-        time.sleep(1.5)
+        try:
+            print self.sendCmd("INFO")
+        except IOError:
+            print "FTDI reset connected"
+            time.sleep(1.5)
         #self.seq=seq
         #self.setSequence(seq)
 
@@ -56,10 +60,10 @@ class DriverBrd:
 
 
     def sendCmd(self,cmd, waitForReply=True):
-        """
-        private method - cmd is a byte string
-        """
-        tout=1
+        tout=1.
+        if waitForReply and ("C;" in cmd or "CA;" in cmd):
+            print "ignoring wait"
+            waitForReply=False
         self.ser.write(cmd+';\r')
         #print '>>'+cmd+';'
         if waitForReply:
