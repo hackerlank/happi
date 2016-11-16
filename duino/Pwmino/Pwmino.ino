@@ -19,10 +19,15 @@
 // all commands are <CMD>;<Par1>;<Par2>\r
 #define CMD_SETVAL	"SET"	// set PWM value in % "SET;2;50"
 #define CMD_SETALL	"SETA"	// set all PWM value in % "SETA;;50"
+#define CMD_CLICK       "C"     // set PWM duration "C;2;50;50"
+#define CMD_CLICK_ALL   "CA"     // set PWM duration "CA;;50;50"
 
+#define CMD_TEST        "TEST"
+#define CMD_SCAN        "SCAN"
 #define CMD_INFO 	"INFO"	// get firmware info "INFO"
+#define CMD_RESET       "RST"  // get firmware info "INFO"
 #define CMD_ENABLE 	"EN"	// enable motors "EN;1"
-#define CMD_SET_LRA "LRA"	// toggle LRA "LRA;1"
+#define CMD_SET_LRA     "LRA"	// toggle LRA "LRA;1"
 #define CMD_OK 		"OK"	// reply OK
 #define CMD_ERROR 	"ERR"	// reply ERROR
 
@@ -31,12 +36,12 @@
 #define WAVE_2P 	"W2P"	// set on-time [ms] and amp [%] "W2P;<t_on[ms]>;<amp[%]>" ... "W2P;60;50"
 #define WAVE_EN 	"WEN" 	// wave direction +/-1 and 0 to disable "WEN;-1"
 
-#define WAVE_PARAMS "WP"	// set all params "WP;<float>CSV" @ deprecated
+#define WAVE_PARAMS     "WP"	// set all params "WP;<float>CSV" @ deprecated
 #define WAVE_F0 	"WF0"
 #define WAVE_FK 	"WFK"
 #define WAVE_A0 	"WA0"
 #define WAVE_AK 	"WAK"
-
+#define WAVE          "WAV"
 
 //uint8_t pwmPins[6]={11,9,5,3,6,10};
 uint8_t pwmPins	[6]={3,5,6,9,10,11};
@@ -150,31 +155,9 @@ int applyCmd() {
     Serial.print(" * ");
   } 
   else if (strcmp(cmd,CMD_TEST)==0) {
-    for (uint8_t j = 0; j < 6; j++) {
-      uint8_t i=hapAdr[sequence[j]];
-      setPWM(j,20);
-      fixedDelay(100);
-      setPWM(j, 0);
-      fixedDelay(100);
-    }
+    
   } 
-  else if (strcmp(cmd,CMD_SCAN)==0) {
-    digitalWrite(13,HIGH);
-    int n=I2c.scan();
-    digitalWrite(13,LOW);
-    for (int i=0; i<n;i++) {
-      digitalWrite(13,HIGH);
-      fixedDelay(300);
-      digitalWrite(13,LOW);
-      fixedDelay(300);
-    }
-  } 
-  else if (strcmp(cmd,CMD_RESET)==0) {
-    initDrivers();
-    digitalWrite(13,HIGH);
-    fixedDelay(700);
-    digitalWrite(13,LOW);
-  } 
+  
   else if (strcmp(cmd,CMD_ENABLE)==0) {
     return -1; // NOT IMPLEMENTED
   }   
@@ -236,15 +219,7 @@ void readLine() {
   }
 }
 
-void initDrivers() {
-  for (uint8_t j = 0; j < 6; j++) {
-    uint8_t i=hapAdr[sequence[j]];
-    drv.setAddress(i);
-    drv.init(i,false);
-    drv.setRealtimeValue(0);
-    fixedDelay(10);
-  }
-}
+
 
 void setup()  {
 	// set PWM timer resolution highest
@@ -264,10 +239,9 @@ void setup()  {
 		pinMode(PIN_TYPE, OUTPUT);
 		digitalWrite(PIN_TYPE, LOW);
 	}
-		inputString.reserve(30);
+		
 		Serial.begin(38400);//,SERIAL_8N1);
 
-}
 }
 
 /* reads serial buffer, executes command if complete, controls the wave */
